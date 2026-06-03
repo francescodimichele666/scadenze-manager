@@ -1,11 +1,13 @@
 import os
+import smtplib
 import threading
 import time
 from datetime import datetime, date, timedelta
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_mail import Mail, Message
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,7 +23,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-mail = Mail(app)
 
 
 # ── Models ─────────────────────────────────────────────────────────────────
@@ -103,21 +104,34 @@ def init_db():
 
 # ── Email ───────────────────────────────────────────────────────────────────
 
-def configure_mail():
-    app.config.update(
-        MAIL_SERVER   = get_setting('mail_server',   'smtp.gmail.com'),
-        MAIL_PORT     = int(get_setting('mail_port', '587')),
-        MAIL_USE_TLS  = get_setting('mail_tls',  'true') == 'true',
-        MAIL_USERNAME = get_setting('mail_username', ''),
-        MAIL_PASSWORD = get_setting('mail_password', ''),
-        MAIL_DEFAULT_SENDER = get_setting('mail_username', ''),
-    )
-    mail.init_app(app)
+def _smtp_send(to, subject, html_body):
+    """Invia email via smtplib usando le impostazioni salvate nel DB."""
+    server   = get_setting('mail_server',   'smtp.gmail.com')
+    port     = int(get_setting('mail_port', '587'))
+    username = get_setting('mail_username', '')
+    password = get_setting('mail_password', '')
+    use_tls  = get_setting('mail_tls', 'true') == 'true'
+
+    if not username or not password:
+        raise ValueError("Credenziali email non configurate nelle Impostazioni.")
+
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From']    = f'ScadenzeManager <{username}>'
+    msg['To']      = to
+    msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+
+    with smtplib.SMTP(server, port, timeout=15) as smtp:
+        smtp.ehlo()
+        if use_tls:
+            smtp.starttls()
+            smtp.ehlo()
+        smtp.login(username, password)
+        smtp.sendmail(username, to, msg.as_string())
 
 
 def check_and_send_alerts():
     with app.app_context():
-        configure_mail()
         recipient = get_setting('alert_email', '')
         if not recipient:
             return
@@ -193,12 +207,11 @@ def _send_alert_email(recipient, scadenze_list):
 </div>
 </body></html>'''
 
-    msg = Message(
-        subject=f'⏰ {len(scadenze_list)} scadenze in arrivo — ScadenzeManager',
-        recipients=[recipient],
-        html=html,
+    _smtp_send(
+        to      = recipient,
+        subject = f'⏰ {len(scadenze_list)} scadenze in arrivo — ScadenzeManager',
+        html_body = html,
     )
-    mail.send(msg)
 
 
 # ── Background scheduler ────────────────────────────────────────────────────
@@ -392,21 +405,26 @@ def settings():
 
 @app.route('/test-email', methods=['POST'])
 def test_email():
-    configure_mail()
     recipient = get_setting('alert_email', '')
     if not recipient:
-        flash('Configura prima l\'email di destinazione!', 'danger')
+        flash('Configura prima l\'email di destinazione nelle impostazioni!', 'danger')
         return redirect(url_for('settings'))
     try:
-        msg = Message(
-            subject='✅ Test — ScadenzeManager funziona!',
-            recipients=[recipient],
-            body='Email di test da ScadenzeManager. La configurazione email è corretta!',
+        _smtp_send(
+            to        = recipient,
+            subject   = '✅ Test — ScadenzeManager funziona!',
+            html_body = '''
+            <div style="font-family:Arial,sans-serif;padding:32px;background:#F1F5F9;">
+              <div style="max-width:480px;margin:auto;background:white;border-radius:16px;padding:32px;text-align:center;">
+                <div style="font-size:48px;">✅</div>
+                <h2 style="color:#6366F1;margin:16px 0 8px;">Email configurata correttamente!</h2>
+                <p style="color:#64748B;">ScadenzeManager invierà gli alert a questo indirizzo.</p>
+              </div>
+            </div>''',
         )
-        mail.send(msg)
         flash(f'Email di test inviata a {recipient} ✓', 'success')
     except Exception as e:
-        flash(f'Errore invio: {str(e)}', 'danger')
+        flash(f'Errore invio email: {str(e)}', 'danger')
     return redirect(url_for('settings'))
 
 

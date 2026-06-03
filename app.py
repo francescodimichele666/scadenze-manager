@@ -106,7 +106,7 @@ def init_db():
 
 def _smtp_send(to, subject, html_body):
     """Invia email via smtplib usando le impostazioni salvate nel DB."""
-    import ssl, socket as _socket
+    import ssl
 
     server   = get_setting('mail_server',   'smtp.gmail.com')
     port     = int(get_setting('mail_port', '587'))
@@ -125,29 +125,19 @@ def _smtp_send(to, subject, html_body):
 
     context = ssl.create_default_context()
 
-    # Forza IPv4 patchando temporaneamente getaddrinfo,
-    # ma usa comunque il nome host per la verifica SSL
-    _orig_gai = _socket.getaddrinfo
-    def _ipv4_only(host, port, family=0, type=0, proto=0, flags=0):
-        return _orig_gai(host, port, _socket.AF_INET, type, proto, flags)
-    _socket.getaddrinfo = _ipv4_only
-
-    try:
-        if port == 465:
-            with smtplib.SMTP_SSL(server, port, context=context, timeout=20) as smtp:
+    if port == 465:
+        with smtplib.SMTP_SSL(server, port, context=context, timeout=20) as smtp:
+            smtp.ehlo(server)
+            smtp.login(username, password)
+            smtp.sendmail(username, to, msg.as_string())
+    else:
+        with smtplib.SMTP(server, port, timeout=20) as smtp:
+            smtp.ehlo(server)
+            if use_tls:
+                smtp.starttls(context=context)
                 smtp.ehlo(server)
-                smtp.login(username, password)
-                smtp.sendmail(username, to, msg.as_string())
-        else:
-            with smtplib.SMTP(server, port, timeout=20) as smtp:
-                smtp.ehlo(server)
-                if use_tls:
-                    smtp.starttls(context=context)
-                    smtp.ehlo(server)
-                smtp.login(username, password)
-                smtp.sendmail(username, to, msg.as_string())
-    finally:
-        _socket.getaddrinfo = _orig_gai
+            smtp.login(username, password)
+            smtp.sendmail(username, to, msg.as_string())
 
 
 def check_and_send_alerts():

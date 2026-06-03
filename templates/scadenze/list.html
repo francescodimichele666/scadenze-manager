@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% block title %}Scadenze — ScadenzeManager{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Tutte le Scadenze</h1>
+    <p class="subtitle">{{ scadenze|length }} risultati trovati</p>
+  </div>
+  <a href="{{ url_for('scadenza_add') }}" class="btn btn-primary rounded-pill px-4 d-none d-md-inline-flex align-items-center gap-2">
+    <i class="bi bi-plus-circle"></i> Nuova
+  </a>
+</div>
+
+{# ── Filter bar ──────────────────────────────────────────────────────────── #}
+<form method="get" class="filter-bar">
+  <select name="category" class="form-select" onchange="this.form.submit()">
+    <option value="">Tutte le categorie</option>
+    {% for cat in categories %}
+    <option value="{{ cat.id }}" {% if selected_cat == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="status" class="form-select" onchange="this.form.submit()">
+    <option value="">Tutti gli stati</option>
+    <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Da pagare</option>
+    <option value="paid"    {% if selected_status == 'paid'    %}selected{% endif %}>Pagate</option>
+  </select>
+
+  <select name="period" class="form-select" onchange="this.form.submit()">
+    <option value="">Tutto il periodo</option>
+    <option value="overdue" {% if selected_period == 'overdue' %}selected{% endif %}>Scadute</option>
+    <option value="week"    {% if selected_period == 'week'    %}selected{% endif %}>Prossimi 7 giorni</option>
+    <option value="month"   {% if selected_period == 'month'   %}selected{% endif %}>Prossimi 30 giorni</option>
+  </select>
+
+  {% if selected_cat or selected_status or selected_period %}
+  <a href="{{ url_for('scadenze_list') }}" class="btn btn-outline-secondary">
+    <i class="bi bi-x-circle me-1"></i>Reset
+  </a>
+  {% endif %}
+</form>
+
+{# ── List ────────────────────────────────────────────────────────────────── #}
+{% if scadenze %}
+  {% for s in scadenze %}
+  {% set dr = s.days_remaining %}
+  <div class="scard {{ s.urgency }}">
+    <div class="scard-icon" style="background:{{ s.category.color }}1A; color:{{ s.category.color }};">
+      <i class="bi {{ s.category.icon }}"></i>
+    </div>
+
+    <div class="scard-body">
+      <div class="scard-title">{{ s.title }}</div>
+      <div class="scard-meta">
+        <span style="color:{{ s.category.color }};font-weight:600;">{{ s.category.name }}</span>
+        <span>·</span>
+        <span>{{ s.due_date.strftime('%d/%m/%Y') }}</span>
+
+        {% if s.status == 'paid' %}
+          <span class="pill pill-paid"><i class="bi bi-check2"></i> Pagata</span>
+        {% elif dr < 0 %}
+          <span class="pill pill-overdue">Scaduta da {{ dr|abs }}gg</span>
+        {% elif dr == 0 %}
+          <span class="pill pill-today">OGGI!</span>
+        {% elif dr <= 7 %}
+          <span class="pill pill-soon">Tra {{ dr }}gg</span>
+        {% else %}
+          <span class="pill pill-ok">Tra {{ dr }}gg</span>
+        {% endif %}
+
+        {% if s.recurrence != 'none' %}
+        <span class="pill" style="background:#F0FDF4;color:#16A34A;">
+          <i class="bi bi-arrow-repeat"></i>
+          {% if s.recurrence == 'monthly' %}Mensile
+          {% elif s.recurrence == 'quarterly' %}Trimestrale
+          {% elif s.recurrence == 'biannual' %}Semestrale
+          {% elif s.recurrence == 'annual' %}Annuale{% endif %}
+        </span>
+        {% endif %}
+
+        {% if s.notes %}
+        <span class="text-muted" title="{{ s.notes }}"><i class="bi bi-chat-text"></i></span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="scard-right">
+      {% if s.amount %}
+      <div class="scard-amount">€ {{ '%.2f'|format(s.amount) }}</div>
+      {% endif %}
+      <div class="scard-actions">
+        {% if s.status == 'pending' %}
+        <form method="post" action="{{ url_for('scadenza_mark_paid', id=s.id) }}" class="d-inline">
+          <button type="submit" class="btn btn-sm btn-success rounded-pill" title="Segna come pagata"
+                  onclick="return confirm('Segnare &quot;{{ s.title }}&quot; come pagata?')">
+            <i class="bi bi-check-lg"></i>
+          </button>
+        </form>
+        {% endif %}
+        <a href="{{ url_for('scadenza_edit', id=s.id) }}"
+           class="btn btn-sm btn-outline-secondary rounded-pill" title="Modifica">
+          <i class="bi bi-pencil"></i>
+        </a>
+        <form method="post" action="{{ url_for('scadenza_delete', id=s.id) }}" class="d-inline">
+          <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill" title="Elimina"
+                  onclick="return confirm('Eliminare &quot;{{ s.title }}&quot;?')">
+            <i class="bi bi-trash"></i>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {# Totale importi #}
+  {% set totale = namespace(val=0) %}
+  {% for s in scadenze %}{% if s.amount and s.status == 'pending' %}{% set totale.val = totale.val + s.amount %}{% endif %}{% endfor %}
+  {% if totale.val > 0 %}
+  <div class="text-end mt-3 text-muted" style="font-size:14px;">
+    Totale da pagare: <strong class="text-dark fs-6">€ {{ '%.2f'|format(totale.val) }}</strong>
+  </div>
+  {% endif %}
+
+{% else %}
+  <div class="empty-state">
+    <i class="bi bi-search"></i>
+    <p class="fs-6 mt-3">Nessuna scadenza trovata.</p>
+    {% if selected_cat or selected_status or selected_period %}
+    <p>Prova a modificare i filtri.</p>
+    <a href="{{ url_for('scadenze_list') }}" class="btn btn-outline-secondary rounded-pill mt-2">
+      <i class="bi bi-x-circle me-1"></i>Rimuovi filtri
+    </a>
+    {% else %}
+    <a href="{{ url_for('scadenza_add') }}" class="btn btn-primary rounded-pill mt-2 px-4">
+      <i class="bi bi-plus-circle me-2"></i>Aggiungi la prima scadenza
+    </a>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

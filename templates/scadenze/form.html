@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% block title %}{% if scadenza %}Modifica{% else %}Nuova Scadenza{% endif %} — ScadenzeManager{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{% if scadenza %}Modifica Scadenza{% else %}Nuova Scadenza{% endif %}</h1>
+    <p class="subtitle">{% if scadenza %}Aggiorna i dati della scadenza{% else %}Inserisci una nuova scadenza da monitorare{% endif %}</p>
+  </div>
+  <a href="{{ url_for('scadenze_list') }}" class="btn btn-outline-secondary rounded-pill px-4">
+    <i class="bi bi-arrow-left me-1"></i> Indietro
+  </a>
+</div>
+
+<div class="row justify-content-center">
+<div class="col-12 col-lg-8 col-xl-7">
+<div class="form-card">
+  <form method="post">
+
+    {# Title #}
+    <div class="mb-4">
+      <label class="form-label">Titolo <span class="text-danger">*</span></label>
+      <input type="text" name="title" class="form-control" required
+             placeholder="Es. Bolletta Enel, Assicurazione Auto…"
+             value="{{ scadenza.title if scadenza else '' }}">
+    </div>
+
+    {# Category + Amount #}
+    <div class="row g-3 mb-4">
+      <div class="col-sm-7">
+        <label class="form-label">Categoria <span class="text-danger">*</span></label>
+        <select name="category_id" class="form-select" required>
+          {% for cat in categories %}
+          <option value="{{ cat.id }}"
+            {% if scadenza and scadenza.category_id == cat.id %}selected
+            {% elif not scadenza and loop.first %}selected{% endif %}>
+            {{ cat.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-5">
+        <label class="form-label">Importo (€)</label>
+        <div class="input-group">
+          <span class="input-group-text" style="border-radius:8px 0 0 8px;">€</span>
+          <input type="number" name="amount" class="form-control" step="0.01" min="0"
+                 placeholder="0.00"
+                 value="{{ '%.2f'|format(scadenza.amount) if scadenza and scadenza.amount else '' }}"
+                 style="border-radius:0 8px 8px 0;">
+        </div>
+      </div>
+    </div>
+
+    {# Due date + Recurrence #}
+    <div class="row g-3 mb-4">
+      <div class="col-sm-6">
+        <label class="form-label">Data Scadenza <span class="text-danger">*</span></label>
+        <input type="date" name="due_date" class="form-control" required
+               value="{{ default_date }}">
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label">Ricorrenza</label>
+        <select name="recurrence" class="form-select">
+          <option value="none"      {% if scadenza and scadenza.recurrence == 'none'      %}selected{% endif %}>Nessuna</option>
+          <option value="monthly"   {% if scadenza and scadenza.recurrence == 'monthly'   %}selected{% endif %}>Mensile</option>
+          <option value="quarterly" {% if scadenza and scadenza.recurrence == 'quarterly' %}selected{% endif %}>Trimestrale</option>
+          <option value="biannual"  {% if scadenza and scadenza.recurrence == 'biannual'  %}selected{% endif %}>Semestrale</option>
+          <option value="annual"    {% if scadenza and scadenza.recurrence == 'annual'    %}selected{% endif %}>Annuale</option>
+        </select>
+        <div class="form-text">Se impostata, verrà creata la prossima automaticamente quando paghi.</div>
+      </div>
+    </div>
+
+    {# Status + Alert days #}
+    <div class="row g-3 mb-4">
+      <div class="col-sm-6">
+        <label class="form-label">Stato</label>
+        <select name="status" class="form-select">
+          <option value="pending" {% if not scadenza or scadenza.status == 'pending' %}selected{% endif %}>Da pagare</option>
+          <option value="paid"    {% if scadenza and scadenza.status == 'paid'    %}selected{% endif %}>Pagata</option>
+        </select>
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label">Avviso anticipato (giorni)</label>
+        <div class="input-group">
+          <input type="number" name="alert_days" class="form-control" min="0" max="90"
+                 value="{{ scadenza.alert_days if scadenza else 7 }}"
+                 style="border-radius:8px 0 0 8px;">
+          <span class="input-group-text" style="border-radius:0 8px 8px 0;">giorni prima</span>
+        </div>
+        <div class="form-text">Riceverai un'email X giorni prima della scadenza.</div>
+      </div>
+    </div>
+
+    {# Notes #}
+    <div class="mb-4">
+      <label class="form-label">Note</label>
+      <textarea name="notes" class="form-control" rows="3"
+                placeholder="Informazioni aggiuntive, numero contratto, riferimento…">{{ scadenza.notes if scadenza else '' }}</textarea>
+    </div>
+
+    {# Actions #}
+    <div class="d-flex gap-2 justify-content-end pt-2 border-top">
+      <a href="{{ url_for('scadenze_list') }}" class="btn btn-outline-secondary rounded-pill px-4">Annulla</a>
+      <button type="submit" class="btn btn-primary rounded-pill px-5">
+        <i class="bi bi-{% if scadenza %}floppy{% else %}plus-circle{% endif %} me-2"></i>
+        {% if scadenza %}Salva Modifiche{% else %}Aggiungi{% endif %}
+      </button>
+    </div>
+
+  </form>
+</div>
+</div>
+</div>
+{% endblock %}

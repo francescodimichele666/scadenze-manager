@@ -1,0 +1,215 @@
+{% extends 'base.html' %}
+{% block title %}Impostazioni — ScadenzeManager{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Impostazioni</h1>
+    <p class="subtitle">Configura email, alert e categorie</p>
+  </div>
+</div>
+
+<div class="row g-4">
+<div class="col-12 col-lg-8">
+
+  {# ── Email config ────────────────────────────────────────────────────── #}
+  <form method="post" action="{{ url_for('settings') }}">
+  <div class="settings-section">
+    <h5><i class="bi bi-envelope-fill"></i> Configurazione Email</h5>
+
+    <div class="row g-3 mb-3">
+      <div class="col-sm-8">
+        <label class="form-label">Server SMTP</label>
+        <input type="text" name="mail_server" class="form-control"
+               placeholder="smtp.gmail.com" value="{{ cfg.mail_server }}">
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label">Porta</label>
+        <input type="number" name="mail_port" class="form-control"
+               placeholder="587" value="{{ cfg.mail_port }}">
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-sm-6">
+        <label class="form-label">Username (email mittente)</label>
+        <input type="email" name="mail_username" class="form-control"
+               placeholder="tua@gmail.com" value="{{ cfg.mail_username }}">
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label">Password / App Password</label>
+        <div class="input-group">
+          <input type="password" name="mail_password" id="mailPass" class="form-control"
+                 placeholder="••••••••••••" value="{{ cfg.mail_password }}"
+                 style="border-radius:8px 0 0 8px;">
+          <button type="button" class="btn btn-outline-secondary" onclick="togglePass()"
+                  style="border-radius:0 8px 8px 0;" title="Mostra/nascondi">
+            <i class="bi bi-eye" id="passEyeIcon"></i>
+          </button>
+        </div>
+        <div class="form-text">
+          Per Gmail usa una
+          <a href="https://myaccount.google.com/apppasswords" target="_blank">App Password</a>
+          (autenticazione a 2 fattori richiesta).
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-sm-6">
+        <label class="form-label">Email destinazione alert</label>
+        <input type="email" name="alert_email" class="form-control"
+               placeholder="tuaemail@esempio.com" value="{{ cfg.alert_email }}">
+        <div class="form-text">Qui arriveranno le notifiche di scadenza.</div>
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label">TLS</label>
+        <select name="mail_tls" class="form-select">
+          <option value="true"  {% if cfg.mail_tls == 'true'  %}selected{% endif %}>Abilitato (consigliato)</option>
+          <option value="false" {% if cfg.mail_tls == 'false' %}selected{% endif %}>Disabilitato</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="submit" class="btn btn-primary rounded-pill px-4">
+        <i class="bi bi-floppy me-2"></i>Salva Impostazioni
+      </button>
+    </div>
+  </div>
+  </form>
+
+  {# Test email #}
+  <div class="settings-section">
+    <h5><i class="bi bi-send-fill"></i> Test Email</h5>
+    <p class="text-muted mb-3" style="font-size:14px;">
+      Invia un'email di prova per verificare che la configurazione sia corretta.
+    </p>
+    <form method="post" action="{{ url_for('test_email') }}">
+      <button type="submit" class="btn btn-outline-primary rounded-pill px-4">
+        <i class="bi bi-send me-2"></i>Invia Email di Test
+      </button>
+    </form>
+  </div>
+
+  {# ── Categories ──────────────────────────────────────────────────────── #}
+  <div class="settings-section">
+    <h5><i class="bi bi-grid-fill"></i> Gestione Categorie</h5>
+
+    <div class="mb-4">
+      {% for cat in categories %}
+      <div class="d-flex align-items-center gap-3 py-2 border-bottom">
+        <div style="width:36px;height:36px;border-radius:8px;background:{{ cat.color }}1A;
+                    color:{{ cat.color }};display:flex;align-items:center;justify-content:center;font-size:16px;">
+          <i class="bi {{ cat.icon }}"></i>
+        </div>
+        <span class="flex-grow-1 fw-500">{{ cat.name }}</span>
+        <span class="badge" style="background:{{ cat.color }}22;color:{{ cat.color }};border-radius:20px;font-size:11px;padding:4px 10px;">
+          {{ cat.scadenze|length }} scadenze
+        </span>
+        {% if cat.scadenze|length == 0 %}
+        <form method="post" action="{{ url_for('category_delete', id=cat.id) }}" class="d-inline">
+          <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill"
+                  onclick="return confirm('Eliminare la categoria {{ cat.name }}?')">
+            <i class="bi bi-trash"></i>
+          </button>
+        </form>
+        {% else %}
+        <button class="btn btn-sm btn-outline-secondary rounded-pill" disabled title="Ha scadenze associate">
+          <i class="bi bi-lock"></i>
+        </button>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    {# Add category #}
+    <form method="post" action="{{ url_for('category_add') }}">
+      <p class="fw-bold mb-2" style="font-size:14px;">Aggiungi categoria</p>
+      <div class="row g-2 align-items-end">
+        <div class="col-sm-5">
+          <label class="form-label">Nome</label>
+          <input type="text" name="name" class="form-control" required placeholder="Es. Palestra">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label">Icona Bootstrap</label>
+          <input type="text" name="icon" class="form-control" value="bi-tag-fill" placeholder="bi-tag-fill">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label">Colore</label>
+          <input type="color" name="color" class="form-control form-control-color" value="#6366F1" style="height:42px;">
+        </div>
+        <div class="col-sm-2">
+          <button type="submit" class="btn btn-primary rounded-pill w-100">
+            <i class="bi bi-plus-lg"></i>
+          </button>
+        </div>
+      </div>
+      <div class="form-text mt-1">
+        Cerca le icone su <a href="https://icons.getbootstrap.com/" target="_blank">icons.getbootstrap.com</a>
+      </div>
+    </form>
+  </div>
+
+</div>
+
+{# ── Right column: info ──────────────────────────────────────────────────── #}
+<div class="col-12 col-lg-4">
+  <div class="settings-section">
+    <h5><i class="bi bi-info-circle-fill"></i> Come funzionano gli alert</h5>
+    <ol class="ps-3" style="font-size:14px;color:#475569;line-height:1.8;">
+      <li>Configura il server SMTP e l'email.</li>
+      <li>Per ogni scadenza imposta quanti giorni prima ricevere l'avviso.</li>
+      <li>L'app controlla ogni ora e invia un'email riassuntiva.</li>
+      <li>Lo stesso giorno non vengono inviate email duplicate.</li>
+    </ol>
+
+    <div class="alert alert-info mt-3 mb-0" style="font-size:13px;border-radius:10px;">
+      <i class="bi bi-lightbulb-fill me-2"></i>
+      <strong>Gmail:</strong> vai su <em>Account Google → Sicurezza → App Password</em>
+      e genera una password specifica per questa app.
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <h5><i class="bi bi-arrow-repeat"></i> Ricorrenze</h5>
+    <p style="font-size:13px;color:#475569;">
+      Quando segnate come pagate, le scadenze ricorrenti creano automaticamente la prossima:
+    </p>
+    <ul class="ps-3" style="font-size:13px;color:#475569;line-height:2;">
+      <li><strong>Mensile</strong> → +30 giorni</li>
+      <li><strong>Trimestrale</strong> → +90 giorni</li>
+      <li><strong>Semestrale</strong> → +180 giorni</li>
+      <li><strong>Annuale</strong> → +365 giorni</li>
+    </ul>
+  </div>
+
+  <div class="settings-section">
+    <h5><i class="bi bi-cloud-upload-fill"></i> Deploy su Render</h5>
+    <ol class="ps-3" style="font-size:13px;color:#475569;line-height:1.9;">
+      <li>Crea un repo GitHub con questa cartella.</li>
+      <li>Su <strong>render.com</strong> → New Web Service.</li>
+      <li>Collega il repo e usa: <code>gunicorn app:app</code></li>
+      <li>Aggiungi variabile <code>SECRET_KEY</code> nelle env vars.</li>
+    </ol>
+  </div>
+</div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function togglePass() {
+  const inp  = document.getElementById('mailPass');
+  const icon = document.getElementById('passEyeIcon');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    icon.className = 'bi bi-eye-slash';
+  } else {
+    inp.type = 'password';
+    icon.className = 'bi bi-eye';
+  }
+}
+</script>
+{% endblock %}

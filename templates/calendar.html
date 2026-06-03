@@ -1,0 +1,306 @@
+{% extends 'base.html' %}
+{% block title %}Calendario — ScadenzeManager{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css">
+<style>
+  /* ── FullCalendar customization ───────────────────────────────────────── */
+  .fc {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+  }
+  .fc .fc-toolbar-title {
+    font-size: 18px;
+    font-weight: 700;
+    text-transform: capitalize;
+  }
+  .fc .fc-button-primary {
+    background: var(--primary);
+    border-color: var(--primary);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 14px;
+    box-shadow: none !important;
+  }
+  .fc .fc-button-primary:hover       { background: var(--primary-dark); border-color: var(--primary-dark); }
+  .fc .fc-button-primary:not(:disabled):active,
+  .fc .fc-button-primary.fc-button-active { background: var(--primary-dark); border-color: var(--primary-dark); }
+  .fc .fc-button-group { gap: 4px; }
+  .fc .fc-daygrid-day-number { font-weight: 600; font-size: 13px; padding: 6px 8px; color: var(--text); }
+  .fc .fc-col-header-cell-cushion { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+  .fc .fc-daygrid-day.fc-day-today { background: rgba(99,102,241,0.06); }
+  .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color: var(--primary); }
+  .fc-event { border-radius: 5px !important; border: none !important; padding: 2px 6px; font-size: 12px; font-weight: 500; cursor: pointer; }
+  .fc-event:hover { filter: brightness(0.9); }
+  .fc .fc-more-link { font-size: 11px; font-weight: 600; color: var(--primary); }
+  .fc .fc-list-event-title a { color: var(--text); font-weight: 500; }
+  .fc .fc-list-event:hover td { background: #F8FAFC; }
+  .fc .fc-list-day-cushion { background: #F1F5F9 !important; font-weight: 600; font-size: 13px; }
+
+  /* ── Side panel ───────────────────────────────────────────────────────── */
+  .cal-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+  .cal-legend .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #dayPanel {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    box-shadow: var(--shadow);
+    min-height: 80px;
+  }
+  #dayPanel .dp-event {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--text);
+  }
+  #dayPanel .dp-event:last-child { border-bottom: none; }
+  #dayPanel .dp-event:hover { color: var(--primary); }
+  #dayPanel .dp-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  #dayPanel .dp-title { font-weight: 600; font-size: 14px; flex: 1; }
+  #dayPanel .dp-amount { font-size: 13px; font-weight: 700; color: var(--primary); white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Calendario Scadenze</h1>
+    <p class="subtitle">Vista mensile di tutte le scadenze</p>
+  </div>
+  <a href="{{ url_for('scadenza_add') }}" class="btn btn-primary rounded-pill px-4 d-none d-md-inline-flex align-items-center gap-2">
+    <i class="bi bi-plus-circle"></i> Nuova Scadenza
+  </a>
+</div>
+
+{# ── Controls bar ──────────────────────────────────────────────────────── #}
+<div class="d-flex align-items-center gap-3 flex-wrap mb-3">
+
+  {# Legend #}
+  <div class="cal-legend d-flex flex-wrap gap-2">
+    <span><span class="dot" style="background:#EF4444;"></span>Scaduta</span>
+    <span><span class="dot" style="background:#F59E0B;"></span>Entro 7gg</span>
+    <span><span class="dot" style="background:#6366F1;"></span>In arrivo</span>
+    <span id="legendPaid" style="opacity:0.4;"><span class="dot" style="background:#10B981;"></span>Pagata</span>
+  </div>
+
+  {# Toggle paid #}
+  <div class="ms-auto">
+    <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
+      <input class="form-check-input" type="checkbox" id="togglePaid" style="cursor:pointer;">
+      <label class="form-check-label" for="togglePaid" style="font-size:13px;cursor:pointer;">
+        Mostra pagate
+      </label>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+
+  {# ── Calendar ──────────────────────────────────────────────────────────── #}
+  <div class="col-12 col-xl-8">
+    <div style="background:white;border-radius:var(--radius-lg);padding:20px;
+                border:1px solid var(--border);box-shadow:var(--shadow);">
+      <div id="calendar"></div>
+    </div>
+  </div>
+
+  {# ── Side panel ────────────────────────────────────────────────────────── #}
+  <div class="col-12 col-xl-4">
+
+    {# Selected day events #}
+    <div id="dayPanel" class="mb-3">
+      <p class="text-muted mb-0" style="font-size:13px;">
+        <i class="bi bi-hand-index me-1"></i>
+        Clicca su un giorno per vedere le scadenze.
+      </p>
+    </div>
+
+    {# Monthly summary #}
+    <div style="background:white;border-radius:var(--radius-lg);padding:18px;
+                border:1px solid var(--border);box-shadow:var(--shadow);">
+      <p class="fw-bold mb-3" style="font-size:14px;">
+        <i class="bi bi-bar-chart-fill me-2" style="color:var(--primary);"></i>
+        Scadenze imminenti
+      </p>
+      <div id="upcomingList">
+        <div class="text-muted" style="font-size:13px;">Caricamento…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/it.global.min.js"></script>
+<script>
+let calendar;
+let showPaid = false;
+let allEvents = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+  const calendarEl = document.getElementById('calendar');
+
+  calendar = new FullCalendar.Calendar(calendarEl, {
+    locale: 'it',
+    initialView: window.innerWidth < 768 ? 'listMonth' : 'dayGridMonth',
+    headerToolbar: {
+      left:   'prev,next today',
+      center: 'title',
+      right:  'dayGridMonth,listMonth'
+    },
+    buttonText: { today: 'Oggi', month: 'Mese', list: 'Lista' },
+    dayMaxEvents: 4,
+    height: 'auto',
+    events: fetchEvents,
+    eventClick: function(info) {
+      info.jsEvent.preventDefault();
+      if (info.event.url) window.location.href = info.event.url;
+    },
+    dateClick: function(info) {
+      showDayPanel(info.dateStr);
+    },
+    eventDidMount: function(info) {
+      const p = info.event.extendedProps;
+      info.el.title = p.category + (p.amount ? ` — €${p.amount.toFixed(2)}` : '') + (p.notes ? `\n${p.notes}` : '');
+    },
+    datesSet: function() {
+      renderUpcoming();
+    }
+  });
+
+  calendar.render();
+
+  document.getElementById('togglePaid').addEventListener('change', function() {
+    showPaid = this.checked;
+    document.getElementById('legendPaid').style.opacity = showPaid ? '1' : '0.4';
+    calendar.refetchEvents();
+  });
+});
+
+function fetchEvents(info, successCallback, failureCallback) {
+  fetch('/api/scadenze?paid=' + showPaid)
+    .then(r => r.json())
+    .then(data => {
+      allEvents = data;
+      renderUpcoming();
+      successCallback(data);
+    })
+    .catch(failureCallback);
+}
+
+function showDayPanel(dateStr) {
+  const panel  = document.getElementById('dayPanel');
+  const events = allEvents.filter(e => e.start === dateStr);
+
+  const [y, m, d] = dateStr.split('-');
+  const label = `${parseInt(d)} ${['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'][parseInt(m)-1]} ${y}`;
+
+  if (events.length === 0) {
+    panel.innerHTML = `<p class="text-muted mb-0" style="font-size:13px;">
+      <i class="bi bi-calendar-x me-1"></i> Nessuna scadenza il <strong>${label}</strong>.
+    </p>`;
+    return;
+  }
+
+  let html = `<p class="fw-bold mb-2" style="font-size:13px;">
+    <i class="bi bi-calendar-event me-1" style="color:var(--primary);"></i>
+    ${label} — ${events.length} scadenz${events.length > 1 ? 'e' : 'a'}
+  </p>`;
+
+  events.forEach(e => {
+    const amountHtml = e.extendedProps.amount
+      ? `<span class="dp-amount">€ ${parseFloat(e.extendedProps.amount).toFixed(2)}</span>` : '';
+    html += `
+      <a href="${e.url}" class="dp-event">
+        <span class="dp-dot" style="background:${e.color};"></span>
+        <span class="dp-title">${e.title.replace(/ €[\d.]+$/, '')}</span>
+        ${amountHtml}
+      </a>`;
+  });
+
+  panel.innerHTML = html;
+}
+
+function renderUpcoming() {
+  const list = document.getElementById('upcomingList');
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const upcoming = allEvents
+    .filter(e => {
+      const d = new Date(e.start);
+      d.setHours(0,0,0,0);
+      const diff = Math.ceil((d - today) / 86400000);
+      return e.extendedProps.status === 'pending' && diff >= -30 && diff <= 60;
+    })
+    .sort((a, b) => new Date(a.start) - new Date(b.start))
+    .slice(0, 8);
+
+  if (upcoming.length === 0) {
+    list.innerHTML = '<p class="text-muted mb-0" style="font-size:13px;">Nessuna scadenza imminente.</p>';
+    return;
+  }
+
+  let html = '';
+  upcoming.forEach(e => {
+    const d    = new Date(e.start);
+    d.setHours(0,0,0,0);
+    const diff = Math.ceil((d - today) / 86400000);
+    const day  = `${d.getDate()} ${['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'][d.getMonth()]}`;
+    const diffLabel = diff < 0  ? `<span style="color:#DC2626;font-size:11px;font-weight:600;">scaduta ${Math.abs(diff)}gg fa</span>`
+                    : diff === 0 ? `<span style="color:#DC2626;font-size:11px;font-weight:600;">OGGI</span>`
+                    : diff <= 7  ? `<span style="color:#D97706;font-size:11px;font-weight:600;">tra ${diff}gg</span>`
+                                 : `<span style="color:#6B7280;font-size:11px;">tra ${diff}gg</span>`;
+    const amount = e.extendedProps.amount
+      ? `<span style="font-size:12px;font-weight:700;color:var(--primary);">€${parseFloat(e.extendedProps.amount).toFixed(0)}</span>` : '';
+
+    html += `
+    <a href="${e.url}" style="display:flex;align-items:center;gap:8px;padding:7px 0;
+       border-bottom:1px solid var(--border);text-decoration:none;color:var(--text);"
+       class="upcoming-item">
+      <span style="width:8px;height:8px;border-radius:50%;background:${e.color};flex-shrink:0;"></span>
+      <span style="flex:1;min-width:0;">
+        <span style="display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          ${e.title.replace(/ €[\d.]+$/, '')}
+        </span>
+        <span style="display:flex;align-items:center;gap:6px;">${day} · ${diffLabel}</span>
+      </span>
+      ${amount}
+    </a>`;
+  });
+
+  list.innerHTML = html;
+
+  // hover style
+  document.querySelectorAll('.upcoming-item').forEach(el => {
+    el.addEventListener('mouseenter', () => el.style.color = 'var(--primary)');
+    el.addEventListener('mouseleave', () => el.style.color = 'var(--text)');
+  });
+}
+</script>
+{% endblock %}

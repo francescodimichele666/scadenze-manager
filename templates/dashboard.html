@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — ScadenzeManager{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Dashboard</h1>
+    <p class="subtitle">
+      {% set giorni = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'] %}
+      {% set mesi   = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'] %}
+      {{ giorni[today.weekday()] }}, {{ today.day }} {{ mesi[today.month-1] }} {{ today.year }}
+    </p>
+  </div>
+  <a href="{{ url_for('scadenza_add') }}" class="btn btn-primary rounded-pill px-4 d-none d-md-inline-flex align-items-center gap-2">
+    <i class="bi bi-plus-circle"></i> Nuova Scadenza
+  </a>
+</div>
+
+{# ── Stat cards ─────────────────────────────────────────────────────────── #}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <a href="{{ url_for('scadenze_list', period='overdue') }}" class="text-decoration-none">
+      <div class="stat-card">
+        <div class="stat-icon bg-danger-soft"><i class="bi bi-exclamation-triangle-fill"></i></div>
+        <div class="stat-value {% if overdue > 0 %}text-danger{% endif %}">{{ overdue }}</div>
+        <div class="stat-label">Scadute</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a href="{{ url_for('scadenze_list', period='week') }}" class="text-decoration-none">
+      <div class="stat-card">
+        <div class="stat-icon bg-warning-soft"><i class="bi bi-clock-fill" style="color:#D97706;"></i></div>
+        <div class="stat-value {% if next7 > 0 %}text-warning{% endif %}">{{ next7 }}</div>
+        <div class="stat-label">Prossimi 7 giorni</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a href="{{ url_for('scadenze_list', period='month') }}" class="text-decoration-none">
+      <div class="stat-card">
+        <div class="stat-icon bg-primary-soft"><i class="bi bi-calendar-month-fill" style="color:#6366F1;"></i></div>
+        <div class="stat-value text-primary">{{ month_count }}</div>
+        <div class="stat-label">Questo mese</div>
+        {% if month_total > 0 %}
+        <div class="stat-sub text-primary">€ {{ '%.0f'|format(month_total) }}</div>
+        {% endif %}
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon bg-success-soft"><i class="bi bi-check-circle-fill" style="color:#059669;"></i></div>
+      <div class="stat-value text-success">{{ paid_this_month }}</div>
+      <div class="stat-label">Pagate (mese corrente)</div>
+    </div>
+  </div>
+</div>
+
+{# ── Upcoming ───────────────────────────────────────────────────────────── #}
+<div class="section-title">
+  <span>Prossime Scadenze</span>
+  <a href="{{ url_for('scadenze_list') }}" class="text-primary text-decoration-none">
+    Vedi tutte <i class="bi bi-arrow-right-short"></i>
+  </a>
+</div>
+
+{% if upcoming %}
+  {% for s in upcoming %}
+  {% set dr = s.days_remaining %}
+  <div class="scard {{ s.urgency }}">
+    <div class="scard-icon" style="background:{{ s.category.color }}1A; color:{{ s.category.color }};">
+      <i class="bi {{ s.category.icon }}"></i>
+    </div>
+    <div class="scard-body">
+      <div class="scard-title">{{ s.title }}</div>
+      <div class="scard-meta">
+        <span style="color:{{ s.category.color }}; font-weight:600;">{{ s.category.name }}</span>
+        <span>·</span>
+        <span>{{ s.due_date.strftime('%d/%m/%Y') }}</span>
+        {% if dr < 0 %}
+          <span class="pill pill-overdue">Scaduta da {{ dr|abs }} giorni</span>
+        {% elif dr == 0 %}
+          <span class="pill pill-today">OGGI!</span>
+        {% elif dr <= 7 %}
+          <span class="pill pill-soon">Tra {{ dr }} giorni</span>
+        {% else %}
+          <span class="pill pill-ok">Tra {{ dr }} giorni</span>
+        {% endif %}
+        {% if s.recurrence != 'none' %}
+          <span class="pill" style="background:#F0FDF4;color:#16A34A;">
+            <i class="bi bi-arrow-repeat"></i>
+            {% if s.recurrence == 'monthly' %}Mensile
+            {% elif s.recurrence == 'quarterly' %}Trimestrale
+            {% elif s.recurrence == 'biannual' %}Semestrale
+            {% elif s.recurrence == 'annual' %}Annuale{% endif %}
+          </span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="scard-right">
+      {% if s.amount %}
+      <div class="scard-amount">€ {{ '%.2f'|format(s.amount) }}</div>
+      {% endif %}
+      <div class="scard-actions">
+        <form method="post" action="{{ url_for('scadenza_mark_paid', id=s.id) }}" class="d-inline">
+          <button type="submit" class="btn btn-sm btn-success rounded-pill" title="Segna come pagata" onclick="return confirm('Segnare come pagata?')">
+            <i class="bi bi-check-lg"></i>
+          </button>
+        </form>
+        <a href="{{ url_for('scadenza_edit', id=s.id) }}" class="btn btn-sm btn-outline-secondary rounded-pill" title="Modifica">
+          <i class="bi bi-pencil"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="empty-state">
+    <i class="bi bi-calendar-check"></i>
+    <p class="fs-6 mt-3">Nessuna scadenza imminente!</p>
+    <p>Sei in regola con tutti i pagamenti.</p>
+    <a href="{{ url_for('scadenza_add') }}" class="btn btn-primary rounded-pill mt-2 px-4">
+      <i class="bi bi-plus-circle me-2"></i>Aggiungi la prima scadenza
+    </a>
+  </div>
+{% endif %}
+{% endblock %}

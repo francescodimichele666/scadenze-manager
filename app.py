@@ -106,6 +106,8 @@ def init_db():
 
 def _smtp_send(to, subject, html_body):
     """Invia email via smtplib usando le impostazioni salvate nel DB."""
+    import ssl, socket
+
     server   = get_setting('mail_server',   'smtp.gmail.com')
     port     = int(get_setting('mail_port', '587'))
     username = get_setting('mail_username', '')
@@ -121,13 +123,30 @@ def _smtp_send(to, subject, html_body):
     msg['To']      = to
     msg.attach(MIMEText(html_body, 'html', 'utf-8'))
 
-    with smtplib.SMTP(server, port, timeout=15) as smtp:
-        smtp.ehlo()
-        if use_tls:
-            smtp.starttls()
-            smtp.ehlo()
-        smtp.login(username, password)
-        smtp.sendmail(username, to, msg.as_string())
+    # Forza IPv4 per evitare problemi di routing su cloud (errno 101)
+    try:
+        addrs = socket.getaddrinfo(server, port, socket.AF_INET, socket.SOCK_STREAM)
+        ip = addrs[0][4][0]
+    except Exception:
+        ip = server
+
+    context = ssl.create_default_context()
+
+    if port == 465:
+        # Connessione SSL diretta
+        with smtplib.SMTP_SSL(ip, port, context=context, timeout=20) as smtp:
+            smtp.ehlo(server)
+            smtp.login(username, password)
+            smtp.sendmail(username, to, msg.as_string())
+    else:
+        # STARTTLS (porta 587)
+        with smtplib.SMTP(ip, port, timeout=20) as smtp:
+            smtp.ehlo(server)
+            if use_tls:
+                smtp.starttls(context=context)
+                smtp.ehlo(server)
+            smtp.login(username, password)
+            smtp.sendmail(username, to, msg.as_string())
 
 
 def check_and_send_alerts():
